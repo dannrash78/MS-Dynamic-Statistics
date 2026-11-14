@@ -16,7 +16,7 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
 @media print{body{background:#fff}header{padding:15px 0;background:#fff;color:#000}.nav,.ver,.actions,.uploadrow,.sourcebox,.controls,.foot,.setting-actions{display:none!important}main{max-width:none;margin:0;padding:0}.card{box-shadow:none;break-inside:avoid}.chartbox{height:420px}}
 </style></head>
 <body>
-<header><div class="topline"><div class="brand">Инструмент за анализ на анкети</div><div class="ver">Версия на приложението <b id="appVersion">1.2.0</b></div></div><h1>Динамична статистика</h1><p class="sub">Изграждайте статистически визуализации от Excel, CSV или Google Sheets. Данните се обработват локално в браузъра.</p></header>
+<header><div class="topline"><div class="brand">Инструмент за анализ на анкети</div><div class="ver">Версия на приложението <b id="appVersion">1.2.1</b></div></div><h1>Динамична статистика</h1><p class="sub">Изграждайте статистически визуализации от Excel, CSV или Google Sheets. Данните се обработват локално в браузъра.</p></header>
 <main>
 <nav class="nav" aria-label="Основна навигация"><button class="active" data-page="analysisPage">Анализ и визуализации</button><button data-page="settingsPage">Настройки</button></nav>
 <section id="analysisPage" class="page active">
@@ -35,12 +35,12 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
  <div class="setting-actions"><button id="saveSettings" type="button">Запази настройките</button><button class="secondary" id="saveAndLoad" type="button">Запази и зареди таблицата</button><button class="ghost" id="exportSettings" type="button">Експорт на настройките</button><label class="filebtn secondary" for="importSettings">Импорт на настройки</label><input id="importSettings" class="hidden" type="file" accept="application/json"><button class="ghost" id="resetSettings" type="button">Възстанови началните</button></div><div id="settingsStatus" class="muted" style="font-size:12px;margin-top:10px" aria-live="polite"></div>
  </section>
 </section>
-<div class="foot">Локална обработка на данните • Настройките се пазят в този браузър • Версия 1.2.0</div>
+<div class="foot">Локална обработка на данните • Настройките се пазят в този браузър • Версия 1.2.1</div>
 </main>
 <script>
 (()=>{
  'use strict';
- const APP_VERSION='1.2.0', STORAGE_KEY='msDynamicStatistics.settings.v1';
+ const APP_VERSION='1.2.1', STORAGE_KEY='msDynamicStatistics.settings.v1';
  const DEFAULTS={sheetUrl:'https://docs.google.com/spreadsheets/d/1AA-cQk5AywsnkW98ZZOt9ha7vKvGzkxxQKFAUj_a4SQ/edit?usp=sharing',sheetGid:'0',autoLoad:false,sourceName:'МС – актуално анкета',surveyVersion:'',surveyTitle:'МС – актуално',denominator:'valid',valueMode:'auto',maxCategories:'10',chartType:'bar'};
  const $=id=>document.getElementById(id); let settings=loadSettings(),records=[],headers=[],chart=null,currentResults=[],sourceLabel='';
  $('appVersion').textContent=APP_VERSION;
@@ -142,14 +142,46 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
   $('resultRows').innerHTML=currentResults.map(x=>`<tr><td>${escapeHtml(x.label)}</td><td>${escapeHtml(x.group)}</td><td>${x.participants}</td><td>${x.selections}</td><td>${x.denominator}</td><td>${x.percent.toLocaleString('bg-BG',{minimumFractionDigits:1,maximumFractionDigits:1})}%</td></tr>`).join('')||'<tr><td colspan="6">Няма данни за този показател.</td></tr>';
   ['pngExport','csvExport','pdfExport'].forEach(id=>$(id).disabled=!items.length);
  }
+ function loadGoogleSheetJsonp(sheetId,gid){
+  return new Promise((resolve,reject)=>{
+   const callback='__msSheetCallback_'+Date.now()+'_'+Math.floor(Math.random()*1000000);
+   const script=document.createElement('script');
+   const timer=setTimeout(()=>finish(new Error('Изтече времето за отговор от Google Sheets.')),20000);
+   function cleanup(){clearTimeout(timer);script.remove();try{delete window[callback]}catch(e){window[callback]=undefined}}
+   function finish(error,value){cleanup();error?reject(error):resolve(value)}
+   window[callback]=payload=>{
+    if(!payload||payload.status==='error'){const msg=payload?.errors?.map(x=>x.detailed_message||x.message).join('; ')||'Google Sheets върна невалиден отговор.';finish(new Error(msg));return}
+    const table=payload.table;
+    if(!table||!Array.isArray(table.cols)||!Array.isArray(table.rows)){finish(new Error('Google Sheets не върна очакваната таблична структура.'));return}
+    const headers=table.cols.map((c,i)=>String(c.label||c.id||('Column '+(i+1))).trim());
+    const rows=table.rows.map(row=>{
+     const obj={};
+     headers.forEach((key,i)=>{const cell=row.c?.[i];obj[key]=cell?(cell.v??cell.f??''):''});
+     return obj;
+    });
+    finish(null,rows);
+   };
+   script.onerror=()=>finish(new Error('Google Sheets не позволи зареждане на публичния лист. Проверете линка и достъпа.'));
+   const params=new URLSearchParams({tqx:'out:json;responseHandler:'+callback,gid:String(gid||'0')});
+   script.src='https://docs.google.com/spreadsheets/d/'+encodeURIComponent(sheetId)+'/gviz/tq?'+params.toString();
+   document.head.appendChild(script);
+  });
+ }
  async function loadConfiguredSource(){
   const url=settings.sheetUrl||'';
   if(!url){setStatus('Добавете линк към източника в Настройки.','warn');switchPage('settingsPage');return}
   try{
-   const parsed=new URL(url);let wb,label=settings.sourceName||'Външен файл';
+   const parsed=new URL(url);let rows,label=settings.sourceName||'Външен файл';
    const publishedSheet=parsed.pathname.includes('/spreadsheets/d/e/')&&(parsed.pathname.includes('/pub')||parsed.pathname.includes('/pubhtml'));
    const standardSheet=parsed.pathname.includes('/spreadsheets/d/')&&!publishedSheet;
-   if(publishedSheet){
+   if(standardSheet){
+    const id=parsed.pathname.split('/spreadsheets/d/')[1].split('/')[0];
+    const hashGid=(parsed.hash.match(/gid=(\d+)/)||[])[1];
+    const gid=parsed.searchParams.get('gid')||hashGid||settings.sheetGid||'0';
+    setStatus('Зареждане на публичния Google Sheets лист…');
+    rows=await loadGoogleSheetJsonp(id,gid);
+    label=settings.sourceName||'Google Sheets';
+   }else if(publishedSheet){
     parsed.pathname=parsed.pathname.replace('/pubhtml','/pub');
     parsed.searchParams.set('output','csv');
     setStatus('Зареждане на публикувания Google Sheets CSV…');
@@ -157,18 +189,9 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
     if(!res.ok)throw new Error('Публикуваният Google Sheets файл върна HTTP '+res.status+'. Проверете дали публикуването е активно.');
     const csv=await res.text();
     if(new RegExp('<html[\\s>]', 'i').test(csv.slice(0,500)))throw new Error('Google върна HTML страница вместо CSV. Проверете публикувания линк.');
-    wb=XLSX.read(csv,{type:'string'});label=settings.sourceName||'Google Sheets (публикуван CSV)';
-   }else if(standardSheet){
-    const id=parsed.pathname.split('/spreadsheets/d/')[1].split('/')[0];
-    const hashGid=(parsed.hash.match(/gid=(\\d+)/)||[])[1];
-    const gid=parsed.searchParams.get('gid')||hashGid||settings.sheetGid||'0';
-    const csvUrl='https://docs.google.com/spreadsheets/d/'+id+'/export?format=csv&gid='+encodeURIComponent(gid);
-    setStatus('Зареждане от Google Sheets…');
-    const res=await fetch(csvUrl);
-    if(!res.ok)throw new Error('Google Sheets върна HTTP '+res.status+'. Проверете достъпа „Всеки с линка – Преглеждащ“ и GID на листа.');
-    const csv=await res.text();
-    if(new RegExp('<html[\\s>]', 'i').test(csv.slice(0,500)))throw new Error('Google върна страница за вход/достъп вместо CSV. Таблицата не е публично достъпна за този начин на зареждане.');
-    wb=XLSX.read(csv,{type:'string'});label=settings.sourceName||'Google Sheets';
+    const wb=XLSX.read(csv,{type:'string'});
+    const first=wb.SheetNames[0];rows=XLSX.utils.sheet_to_json(wb.Sheets[first],{defval:'',raw:false});
+    label=settings.sourceName||'Google Sheets (публикуван CSV)';
    }else{
     let fileUrl=url;
     const marker='/file/d/';
@@ -177,13 +200,12 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
     let res;
     try{res=await fetch(fileUrl)}catch(fetchErr){throw new Error('Google Drive/хостингът блокира директното зареждане от друг сайт (CORS) или файлът не е публично достъпен. Изтеглете Excel файла и го качете с бутона „Избери Excel / CSV“.')}
     if(!res.ok)throw new Error('Файлът върна HTTP '+res.status+'. Проверете споделянето и линка за директно изтегляне.');
-    wb=XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:true});
+    const wb=XLSX.read(await res.arrayBuffer(),{type:'array',cellDates:true});
+    const first=wb.SheetNames[0];rows=XLSX.utils.sheet_to_json(wb.Sheets[first],{defval:'',raw:false});
     label=settings.sourceName||decodeURIComponent(parsed.pathname.split('/').pop()||'Външен файл');
    }
-   const firstSheet=wb.SheetNames?.[0];
-   if(!firstSheet)throw new Error('Не е открит лист с данни във файла.');
-   const json=XLSX.utils.sheet_to_json(wb.Sheets[firstSheet],{defval:'',raw:false});
-   setData(json,label);
+   if(!Array.isArray(rows)||!rows.length)throw new Error('Листът е достъпен, но не съдържа редове с данни.');
+   setData(rows,label);
   }catch(err){
    const detail=err instanceof TypeError?'Браузърът не успя да достъпи източника. Проверете разрешенията или използвайте локално качване.':err.message;
    setStatus('Неуспешно зареждане: '+detail,'warn');
