@@ -16,7 +16,7 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
 @media print{body{background:#fff}header{padding:15px 0;background:#fff;color:#000}.nav,.ver,.actions,.uploadrow,.sourcebox,.controls,.foot,.setting-actions{display:none!important}main{max-width:none;margin:0;padding:0}.card{box-shadow:none;break-inside:avoid}.chartbox{height:420px}}
 </style></head>
 <body>
-<header><div class="topline"><div class="brand">Инструмент за анализ на анкети</div><div class="ver">Версия на приложението <b id="appVersion">1.2.5</b></div></div><h1>Динамична статистика</h1><p class="sub">Изграждайте статистически визуализации от Excel, CSV или Google Sheets. Данните се обработват локално в браузъра.</p></header>
+<header><div class="topline"><div class="brand">Инструмент за анализ на анкети</div><div class="ver">Версия на приложението <b id="appVersion">1.2.6</b></div></div><h1>Динамична статистика</h1><p class="sub">Изграждайте статистически визуализации от Excel, CSV или Google Sheets. Данните се обработват локално в браузъра.</p></header>
 <main>
 <nav class="nav" aria-label="Основна навигация"><button class="active" data-page="analysisPage">Анализ и визуализации</button><button data-page="settingsPage">Настройки</button></nav>
 <section id="analysisPage" class="page active">
@@ -40,7 +40,7 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
 <script>
 (()=>{
  'use strict';
- const APP_VERSION='1.2.5', STORAGE_KEY='msDynamicStatistics.settings.v1';
+ const APP_VERSION='1.2.6', STORAGE_KEY='msDynamicStatistics.settings.v1';
  const DEFAULTS={sheetUrl:'https://docs.google.com/spreadsheets/d/1AA-cQk5AywsnkW98ZZOt9ha7vKvGzkxxQKFAUj_a4SQ/edit?usp=sharing',sheetGid:'0',autoLoad:false,sourceName:'МС – актуално анкета',surveyVersion:'',surveyTitle:'МС – актуално',denominator:'valid',valueMode:'auto',maxCategories:'10',chartType:'bar'};
  const $=id=>document.getElementById(id); let settings=loadSettings(),records=[],headers=[],chart=null,currentResults=[],sourceLabel='';
  $('appVersion').textContent=APP_VERSION;
@@ -61,6 +61,24 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
  }
  function compareYearCategories(a,b){
   const ra=yearCategoryRank(a),rb=yearCategoryRank(b);
+  if(ra!==rb)return ra-rb;
+  return norm(a).localeCompare(norm(b),'bg',{numeric:true,sensitivity:'base'});
+ }
+ function ageCategoryRank(value){
+  const s=norm(value).toLocaleLowerCase('bg').replace(/[–—−]/g,'-').replace(/\\s+/g,'').replace(/години|година|г\\./g,'г');
+  const order=[
+   ['под20г','под20','under20'],
+   ['20-29г','20-29'],
+   ['30-39г','30-39'],
+   ['40-49г','40-49'],
+   ['50-59г','50-59'],
+   ['60+г','60+','над60г','над60']
+  ];
+  const idx=order.findIndex(aliases=>aliases.includes(s));
+  return idx<0?999:idx;
+ }
+ function compareAgeCategories(a,b){
+  const ra=ageCategoryRank(a),rb=ageCategoryRank(b);
   if(ra!==rb)return ra-rb;
   return norm(a).localeCompare(norm(b),'bg',{numeric:true,sensitivity:'base'});
  }
@@ -119,6 +137,7 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
   const groupsByRow=r=>group?(isBlank(r[group])?'Без отговор':norm(r[group])):'Всички';
   const groupNames=[...new Set(filtered.map(groupsByRow))];
    if(group==='years_ms')groupNames.sort(compareYearCategories);
+   if(group==='age')groupNames.sort(compareAgeCategories);
   const denominators=new Map(groupNames.map(g=>[g,0]));
   const counts=new Map();let validN=0,totalSelections=0;
   filtered.forEach(r=>{
@@ -137,6 +156,7 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
   });
   let items=[...counts.entries()].map(([label,byGroup])=>({label,byGroup,total:[...byGroup.values()].reduce((a,b)=>a+b.participants,0)}));
    if(metric==='years_ms')items.sort((a,b)=>compareYearCategories(a.label,b.label));
+   else if(metric==='age')items.sort((a,b)=>compareAgeCategories(a.label,b.label));
    else items.sort((a,b)=>b.total-a.total);
   const max=Number($('maxCategories').value);if(max>0)items=items.slice(0,max);
   const labels=items.map(x=>x.label);
