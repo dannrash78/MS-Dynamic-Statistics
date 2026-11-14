@@ -16,7 +16,7 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
 @media print{body{background:#fff}header{padding:15px 0;background:#fff;color:#000}.nav,.ver,.actions,.uploadrow,.sourcebox,.controls,.foot,.setting-actions{display:none!important}main{max-width:none;margin:0;padding:0}.card{box-shadow:none;break-inside:avoid}.chartbox{height:420px}}
 </style></head>
 <body>
-<header><div class="topline"><div class="brand">Инструмент за анализ на анкети</div><div class="ver">Версия на приложението <b id="appVersion">1.2.3</b></div></div><h1>Динамична статистика</h1><p class="sub">Изграждайте статистически визуализации от Excel, CSV или Google Sheets. Данните се обработват локално в браузъра.</p></header>
+<header><div class="topline"><div class="brand">Инструмент за анализ на анкети</div><div class="ver">Версия на приложението <b id="appVersion">1.2.4</b></div></div><h1>Динамична статистика</h1><p class="sub">Изграждайте статистически визуализации от Excel, CSV или Google Sheets. Данните се обработват локално в браузъра.</p></header>
 <main>
 <nav class="nav" aria-label="Основна навигация"><button class="active" data-page="analysisPage">Анализ и визуализации</button><button data-page="settingsPage">Настройки</button></nav>
 <section id="analysisPage" class="page active">
@@ -40,7 +40,7 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
 <script>
 (()=>{
  'use strict';
- const APP_VERSION='1.2.3', STORAGE_KEY='msDynamicStatistics.settings.v1';
+ const APP_VERSION='1.2.4', STORAGE_KEY='msDynamicStatistics.settings.v1';
  const DEFAULTS={sheetUrl:'https://docs.google.com/spreadsheets/d/1AA-cQk5AywsnkW98ZZOt9ha7vKvGzkxxQKFAUj_a4SQ/edit?usp=sharing',sheetGid:'0',autoLoad:false,sourceName:'МС – актуално анкета',surveyVersion:'',surveyTitle:'МС – актуално',denominator:'valid',valueMode:'auto',maxCategories:'10',chartType:'bar'};
  const $=id=>document.getElementById(id); let settings=loadSettings(),records=[],headers=[],chart=null,currentResults=[],sourceLabel='';
  $('appVersion').textContent=APP_VERSION;
@@ -53,6 +53,17 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
  function norm(v){return String(v??'').trim()} function isBlank(v){return v===null||v===undefined||norm(v)===''}
  function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
  function uniqueValues(key){return [...new Set(records.map(r=>norm(r[key])).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'bg'))}
+ function yearCategoryRank(value){
+  const s=norm(value).toLocaleLowerCase('bg').replace(/[–—−]/g,'-').replace(/\\s+/g,' ');
+  const order=['под 1 година','1-2 години','3-5 години','6-10 години','11-20 години','над 20 години'];
+  const idx=order.indexOf(s);
+  return idx<0?999:idx;
+ }
+ function compareYearCategories(a,b){
+  const ra=yearCategoryRank(a),rb=yearCategoryRank(b);
+  if(ra!==rb)return ra-rb;
+  return norm(a).localeCompare(norm(b),'bg',{numeric:true,sensitivity:'base'});
+ }
  function switchPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id))}
  document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)));
  function setData(rows,label){
@@ -107,6 +118,7 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
   const multi=mode==='multi'||(mode==='auto'&&answered.some(r=>String(r[metric]).includes(',')));
   const groupsByRow=r=>group?(isBlank(r[group])?'Без отговор':norm(r[group])):'Всички';
   const groupNames=[...new Set(filtered.map(groupsByRow))];
+   if(group==='years_ms')groupNames.sort(compareYearCategories);
   const denominators=new Map(groupNames.map(g=>[g,0]));
   const counts=new Map();let validN=0,totalSelections=0;
   filtered.forEach(r=>{
@@ -123,7 +135,9 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
     const cell=byGroup.get(g);cell.participants+=1;cell.selections+=values.filter(x=>x===v).length;
    });
   });
-  let items=[...counts.entries()].map(([label,byGroup])=>({label,byGroup,total:[...byGroup.values()].reduce((a,b)=>a+b.participants,0)})).sort((a,b)=>b.total-a.total);
+  let items=[...counts.entries()].map(([label,byGroup])=>({label,byGroup,total:[...byGroup.values()].reduce((a,b)=>a+b.participants,0)}));
+   if(metric==='years_ms')items.sort((a,b)=>compareYearCategories(a.label,b.label));
+   else items.sort((a,b)=>b.total-a.total);
   const max=Number($('maxCategories').value);if(max>0)items=items.slice(0,max);
   const labels=items.map(x=>x.label);
   const denominatorFor=g=>denominatorMode==='all'
