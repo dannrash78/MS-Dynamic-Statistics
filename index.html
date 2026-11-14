@@ -16,7 +16,7 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
 @media print{body{background:#fff}header{padding:15px 0;background:#fff;color:#000}.nav,.ver,.actions,.uploadrow,.sourcebox,.controls,.foot,.setting-actions{display:none!important}main{max-width:none;margin:0;padding:0}.card{box-shadow:none;break-inside:avoid}.chartbox{height:420px}}
 </style></head>
 <body>
-<header><div class="topline"><div class="brand">Инструмент за анализ на анкети</div><div class="ver">Версия на приложението <b id="appVersion">1.2.2</b></div></div><h1>Динамична статистика</h1><p class="sub">Изграждайте статистически визуализации от Excel, CSV или Google Sheets. Данните се обработват локално в браузъра.</p></header>
+<header><div class="topline"><div class="brand">Инструмент за анализ на анкети</div><div class="ver">Версия на приложението <b id="appVersion">1.2.3</b></div></div><h1>Динамична статистика</h1><p class="sub">Изграждайте статистически визуализации от Excel, CSV или Google Sheets. Данните се обработват локално в браузъра.</p></header>
 <main>
 <nav class="nav" aria-label="Основна навигация"><button class="active" data-page="analysisPage">Анализ и визуализации</button><button data-page="settingsPage">Настройки</button></nav>
 <section id="analysisPage" class="page active">
@@ -35,12 +35,12 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
  <div class="setting-actions"><button id="saveSettings" type="button">Запази настройките</button><button class="secondary" id="saveAndLoad" type="button">Запази и зареди таблицата</button><button class="ghost" id="exportSettings" type="button">Експорт на настройките</button><label class="filebtn secondary" for="importSettings">Импорт на настройки</label><input id="importSettings" class="hidden" type="file" accept="application/json"><button class="ghost" id="resetSettings" type="button">Възстанови началните</button></div><div id="settingsStatus" class="muted" style="font-size:12px;margin-top:10px" aria-live="polite"></div>
  </section>
 </section>
-<div class="foot">Локална обработка на данните • Настройките се пазят в този браузър • Версия 1.2.2</div>
+<div class="foot">Локална обработка на данните • Настройките се пазят в този браузър • Версия 1.2.3</div>
 </main>
 <script>
 (()=>{
  'use strict';
- const APP_VERSION='1.2.2', STORAGE_KEY='msDynamicStatistics.settings.v1';
+ const APP_VERSION='1.2.3', STORAGE_KEY='msDynamicStatistics.settings.v1';
  const DEFAULTS={sheetUrl:'https://docs.google.com/spreadsheets/d/1AA-cQk5AywsnkW98ZZOt9ha7vKvGzkxxQKFAUj_a4SQ/edit?usp=sharing',sheetGid:'0',autoLoad:false,sourceName:'МС – актуално анкета',surveyVersion:'',surveyTitle:'МС – актуално',denominator:'valid',valueMode:'auto',maxCategories:'10',chartType:'bar'};
  const $=id=>document.getElementById(id); let settings=loadSettings(),records=[],headers=[],chart=null,currentResults=[],sourceLabel='';
  $('appVersion').textContent=APP_VERSION;
@@ -67,12 +67,34 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
  function updateFilterValues(){const key=$('filterBy').value;if(!key){$('filterValue').innerHTML='<option value="">Всички стойности</option>';$('filterValue').disabled=true;return}const vals=uniqueValues(key);$('filterValue').innerHTML='<option value="">Всички стойности</option>'+vals.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');$('filterValue').disabled=false}
  function splitOptions(v){return norm(v).split(/\s*,\s*/).map(x=>x.trim()).filter(Boolean)}
  function makeSeriesPattern(color,kind){
-  const tile=document.createElement('canvas');tile.width=14;tile.height=14;
-  const ctx=tile.getContext('2d');ctx.fillStyle=color;ctx.fillRect(0,0,14,14);
-  ctx.strokeStyle='rgba(255,255,255,.88)';ctx.lineWidth=2;
-  if(kind===0){ctx.beginPath();ctx.moveTo(-3,14);ctx.lineTo(14,-3);ctx.moveTo(4,17);ctx.lineTo(17,4);ctx.stroke()}
-  else if(kind===1){ctx.beginPath();ctx.moveTo(-3,-3);ctx.lineTo(14,14);ctx.moveTo(4,-3);ctx.lineTo(17,10);ctx.stroke()}
-  else{ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(14,14);ctx.moveTo(14,0);ctx.lineTo(0,14);ctx.stroke()}
+  if(kind===0)return color;
+  const tile=document.createElement('canvas');tile.width=16;tile.height=16;
+  const ctx=tile.getContext('2d');ctx.fillStyle=color;ctx.fillRect(0,0,16,16);
+  ctx.strokeStyle='rgba(255,255,255,.96)';ctx.fillStyle='rgba(255,255,255,.96)';
+  ctx.lineWidth=1.8;
+  if(kind===1||kind===2||kind===3||kind===8||kind===9){
+   const step=kind===8?6:kind===9?8:16;
+   ctx.beginPath();
+   for(let p=-16;p<=32;p+=step){
+    if(kind===1||kind===3||kind===8||kind===9){ctx.moveTo(p,16);ctx.lineTo(p+16,0)}
+    if(kind===2||kind===3||kind===8||kind===9){ctx.moveTo(p,0);ctx.lineTo(p+16,16)}
+   }
+   ctx.stroke();
+  }else if(kind===4||kind===5){
+   ctx.beginPath();
+   for(let p=4;p<16;p+=kind===4?8:8){
+    if(kind===4){ctx.moveTo(0,p);ctx.lineTo(16,p)}
+    else{ctx.moveTo(p,0);ctx.lineTo(p,16)}
+   }
+   ctx.stroke();
+  }else if(kind===6||kind===7){
+   const step=kind===6?8:4;
+   for(let y=step/2;y<16;y+=step)for(let x=step/2;x<16;x+=step){
+    ctx.beginPath();ctx.arc(x,y,kind===6?1.35:1,0,Math.PI*2);ctx.fill();
+   }
+  }else{
+   ctx.beginPath();ctx.moveTo(0,8);ctx.lineTo(16,8);ctx.moveTo(8,0);ctx.lineTo(8,16);ctx.stroke();
+  }
   return ctx.createPattern(tile,'repeat');
  }
  function buildChart(){
@@ -111,7 +133,7 @@ button,.filebtn{border:0;border-radius:10px;background:var(--green);color:#fff;p
   const datasets=groupNames.map((g,i)=>({
    label:g,
    data:items.map(item=>{const den=denominatorFor(g);return den?+((item.byGroup.get(g)?.participants||0)/den*100).toFixed(1):0}),
-   backgroundColor:palette.map(color=>makeSeriesPattern(color,i%3)),
+   backgroundColor:palette.map(color=>makeSeriesPattern(color,i)),
    borderWidth:1,borderColor:'#fff'
   }));
   currentResults=[];
