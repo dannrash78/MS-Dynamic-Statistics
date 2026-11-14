@@ -1,6 +1,6 @@
 # МС – динамична статистика
 
-**Версия на приложението: 1.2.0**
+**Версия на приложението: 1.2.1**
 
 Самостоятелно клиентско приложение за динамични статистически визуализации от Excel, CSV и Google Sheets. Предназначено е за публикуване чрез GitHub Pages.
 
@@ -39,3 +39,7 @@
 ## Публикуване в GitHub Pages
 
 В хранилището включете GitHub Pages: **Settings → Pages → Deploy from a branch → main → /(root) → Save**. Основният файл е `index.html`.
+
+### Google Sheets loading (v1.2.1)
+
+Public Google Sheets links are read through the Google Visualization JSONP endpoint to avoid browser CORS restrictions on direct CSV fetch. The sheet must still be accessible to anyone with the link as Viewer. For private sheets, use local Excel/CSV upload. The first sheet is read by default; a `gid` in the URL or settings selects another sheet.
